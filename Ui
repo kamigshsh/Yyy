@@ -1,0 +1,413 @@
+-- Credits to pet <333
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local cam = workspace.CurrentCamera
+
+local scaleMult = 1
+local pcButton = false
+
+local col = {
+	bg = Color3.fromRGB(14, 14, 15),
+	line = Color3.fromRGB(78, 82, 92),
+	panel = Color3.fromRGB(17, 17, 18),
+	panelLine = Color3.fromRGB(44, 44, 47),
+	text = Color3.fromRGB(205, 205, 210),
+	dim = Color3.fromRGB(150, 150, 156),
+	off = Color3.fromRGB(95, 95, 100),
+	accent = Color3.fromRGB(150, 195, 235),
+	tab = Color3.fromRGB(20, 20, 22),
+	tabOn = Color3.fromRGB(26, 27, 31),
+	tabLine = Color3.fromRGB(40, 40, 43),
+	tabLineOn = Color3.fromRGB(70, 74, 84),
+	box = Color3.fromRGB(22, 22, 24),
+	boxLine = Color3.fromRGB(52, 52, 56),
+	fillA = Color3.fromRGB(122, 130, 145),
+	fillB = Color3.fromRGB(84, 90, 102),
+}
+local font, fsize = Enum.Font.Arial, 13
+
+local function make(class, props, parent)
+	local o = Instance.new(class)
+	for k, v in pairs(props) do o[k] = v end
+	o.Parent = parent
+	return o
+end
+
+local function outline(o, color, th)
+	return make("UIStroke", {
+		Color = color,
+		Thickness = th or 1,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, o)
+end
+
+local function shade(o, a, b)
+	return make("UIGradient", { Color = ColorSequence.new(a, b), Rotation = 90 }, o)
+end
+
+local function label(parent, str, pos, size, color, align)
+	return make("TextLabel", {
+		BackgroundTransparency = 1,
+		Text = str,
+		Font = font,
+		TextSize = fsize,
+		TextColor3 = color or col.text,
+		Position = pos,
+		Size = size,
+		TextXAlignment = align or Enum.TextXAlignment.Left,
+	}, parent)
+end
+
+-- data
+local function panel(title, toggles, sliders)
+	local p = { title = title, toggles = {}, sliders = {} }
+	for i, v in ipairs(toggles) do p.toggles[i] = { "Example Toggle " .. i, v } end
+	for i, v in ipairs(sliders) do p.sliders[i] = { "Example Slider " .. i, v } end
+	return p
+end
+
+local layouts = {
+	{
+		{ { true, true, false, true }, { 0.65 } },
+		{ { false, false, true }, { 0.40, 0.55 } },
+		{ { true, true, false, false, true }, { 0.80 } },
+		{ { false, true }, { 0.30, 0.50, 0.10 } },
+	},
+	{
+		{ { true, true, false, true }, { 0.45 } },
+		{ { false, true, true }, { 0.70, 0.35 } },
+		{ { true, false, false, true, true }, { 0.55 } },
+		{ { false, true }, { 0.60, 0.25, 0.50 } },
+	},
+	{
+		{ { true, true, false, true }, { 0.65 } },
+		{ { false, true, false }, { 0.60, 0.50 } },
+		{ { true, true, true, false, true }, { 0.50 } },
+		{ { false, true }, { 0.45, 0.35, 0.05 } },
+	},
+}
+
+local tabs = {}
+for n = 1, 6 do
+	local t = { name = "Example Tab " .. n, panels = {} }
+	for i, p in ipairs(layouts[(n - 1) % 3 + 1]) do
+		t.panels[i] = panel("Example Panel " .. i, p[1], p[2])
+	end
+	tabs[n] = t
+end
+
+-- gui
+local gui = make("ScreenGui", {
+	Name = "PetTemplate",
+	ResetOnSpawn = false,
+	IgnoreGuiInset = true,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, Players.LocalPlayer:WaitForChild("PlayerGui"))
+
+local main = make("Frame", {
+	Size = UDim2.fromOffset(640, 590),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	BackgroundColor3 = col.bg,
+	BorderSizePixel = 0,
+}, gui)
+outline(main, col.line)
+
+local uiscale = make("UIScale", {}, main)
+
+local function fit()
+	local vp = cam.ViewportSize
+	local s = math.min(vp.X / 660, vp.Y / 620, 1) * scaleMult
+	if UIS.TouchEnabled then s = math.max(s, 0.55) end
+	uiscale.Scale = math.max(s, 0.4)
+end
+fit()
+cam:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
+
+local titleBar = make("Frame", {
+	Size = UDim2.new(1, 0, 0, 32),
+	BackgroundTransparency = 1,
+	Active = true,
+}, main)
+make("TextLabel", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(9, 0),
+	Size = UDim2.new(1, -18, 0, 25),
+	Font = font,
+	TextSize = fsize,
+	TextColor3 = col.text,
+	RichText = true,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = 'Pet <font color="rgb(170,178,192)">Template</font>',
+}, titleBar)
+make("Frame", {
+	Position = UDim2.fromOffset(1, 25),
+	Size = UDim2.new(1, -2, 0, 1),
+	BackgroundColor3 = Color3.fromRGB(38, 38, 41),
+	BorderSizePixel = 0,
+}, main)
+
+-- dragging
+local function isPress(i)
+	return i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch
+end
+
+local function isMove(i)
+	return i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch
+end
+
+local function drag(handle, target, onTap, thresh)
+	thresh = thresh or 0
+	local down, moved, press, start, origin
+
+	handle.InputBegan:Connect(function(i)
+		if not isPress(i) then return end
+		down, moved, press = true, false, i
+		start = Vector2.new(i.Position.X, i.Position.Y)
+		origin = target.AbsolutePosition + target.AbsoluteSize / 2
+
+		local c
+		c = i.Changed:Connect(function()
+			if i.UserInputState ~= Enum.UserInputState.End then return end
+			c:Disconnect()
+			if down then
+				down = false
+				if not moved and onTap then onTap() end
+			end
+		end)
+	end)
+
+	UIS.InputChanged:Connect(function(i)
+		if not down then return end
+		local touch = press.UserInputType == Enum.UserInputType.Touch
+		if touch and i ~= press then return end
+		if not touch and i.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+
+		local d = Vector2.new(i.Position.X, i.Position.Y) - start
+		if not moved then
+			if d.Magnitude < thresh then return end
+			moved = true
+		end
+
+		local vp, half = cam.ViewportSize, target.AbsoluteSize / 2
+		local p = origin + d
+		target.Position = UDim2.fromOffset(
+			math.clamp(p.X, half.X, math.max(half.X, vp.X - half.X)),
+			math.clamp(p.Y, half.Y, math.max(half.Y, vp.Y - half.Y))
+		)
+	end)
+
+	UIS.WindowFocusReleased:Connect(function() down = false end)
+end
+
+drag(titleBar, main)
+
+local function toggle()
+	main.Visible = not main.Visible
+end
+
+UIS.InputBegan:Connect(function(i, gp)
+	if not gp and i.KeyCode == Enum.KeyCode.RightShift then toggle() end
+end)
+
+local btn = make("TextButton", {
+	Name = "Toggle",
+	Size = UDim2.fromOffset(40, 40),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromOffset(44, 130),
+	BackgroundColor3 = col.accent,
+	BorderSizePixel = 0,
+	AutoButtonColor = false,
+	Text = "P",
+	FontFace = Font.fromEnum(Enum.Font.GothamBold),
+	TextSize = 22,
+	TextColor3 = col.bg,
+	Visible = UIS.TouchEnabled or pcButton,
+	ZIndex = 10,
+}, gui)
+shade(btn, Color3.new(1, 1, 1), Color3.fromRGB(205, 215, 230))
+outline(btn, Color3.fromRGB(190, 220, 245))
+drag(btn, btn, toggle, 6)
+
+-- widgets
+local function newToggle(parent, item)
+	local row = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 22),
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+	}, parent)
+	local box = make("Frame", {
+		Position = UDim2.fromOffset(0, 5),
+		Size = UDim2.fromOffset(12, 12),
+		BorderSizePixel = 0,
+	}, row)
+	local line = outline(box, col.boxLine)
+	local fill = shade(box, col.fillA, col.fillB)
+	local txt = label(row, item[1], UDim2.fromOffset(22, 0), UDim2.new(1, -22, 1, 0))
+
+	local function draw()
+		local on = item[2]
+		fill.Enabled = on
+		box.BackgroundColor3 = on and Color3.new(1, 1, 1) or col.box
+		line.Color = on and Color3.fromRGB(160, 168, 182) or col.boxLine
+		txt.TextColor3 = on and col.text or col.off
+	end
+	draw()
+
+	row.MouseButton1Click:Connect(function()
+		item[2] = not item[2]
+		draw()
+	end)
+end
+
+local sliding
+UIS.InputChanged:Connect(function(i)
+	if sliding and isMove(i) then sliding(i.Position.X) end
+end)
+UIS.InputEnded:Connect(function(i)
+	if isPress(i) then sliding = nil end
+end)
+
+local function newSlider(parent, item)
+	local holder = make("Frame", { Size = UDim2.new(1, 0, 0, 37), BackgroundTransparency = 1 }, parent)
+	label(holder, item[1], UDim2.new(), UDim2.new(1, 0, 0, 16), col.dim)
+
+	local bar = make("TextButton", {
+		Position = UDim2.fromOffset(0, 18),
+		Size = UDim2.new(1, 0, 0, 15),
+		BackgroundColor3 = col.box,
+		BorderSizePixel = 0,
+		Text = "",
+		AutoButtonColor = false,
+	}, holder)
+	outline(bar, col.boxLine)
+
+	local fill = make("Frame", {
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+	}, bar)
+	shade(fill, col.fillA, col.fillB)
+
+	local val = label(bar, "", UDim2.new(), UDim2.fromScale(1, 1), col.text, Enum.TextXAlignment.Center)
+	val.ZIndex = 3
+
+	local function set(v)
+		v = math.clamp(math.round(v * 100) / 100, 0, 1)
+		item[2] = v
+		fill.Size = UDim2.fromScale(v, 1)
+		val.Text = string.format("%.2f", v)
+	end
+	set(item[2])
+
+	local function fromX(x)
+		set((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X)
+	end
+
+	bar.InputBegan:Connect(function(i)
+		if isPress(i) then
+			sliding = fromX
+			fromX(i.Position.X)
+		end
+	end)
+end
+
+local function newPanel(parent, data, cx, cy)
+	local p = make("Frame", {
+		Position = UDim2.fromOffset(cx * 316, cy * 225),
+		Size = UDim2.fromOffset(306, 215),
+		BackgroundColor3 = col.panel,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, parent)
+	outline(p, col.panelLine)
+
+	local top = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 3),
+		BackgroundColor3 = Color3.fromRGB(225, 232, 242),
+		BorderSizePixel = 0,
+	}, p)
+	make("UIGradient", {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.5, 0),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+	}, top)
+
+	label(p, data.title, UDim2.fromOffset(9, 8), UDim2.new(1, -18, 0, 16))
+
+	local list = make("Frame", {
+		Position = UDim2.fromOffset(9, 28),
+		Size = UDim2.new(1, -18, 1, -34),
+		BackgroundTransparency = 1,
+	}, p)
+	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder }, list)
+
+	for _, t in ipairs(data.toggles) do newToggle(list, t) end
+	for _, s in ipairs(data.sliders) do newSlider(list, s) end
+end
+
+-- tabs
+local tabBar = make("Frame", {
+	Position = UDim2.fromOffset(9, 33),
+	Size = UDim2.fromOffset(622, 42),
+	BackgroundTransparency = 1,
+}, main)
+
+local content = make("Frame", {
+	Position = UDim2.fromOffset(9, 96),
+	Size = UDim2.fromOffset(622, 440),
+	BackgroundTransparency = 1,
+}, main)
+
+local buttons, current = {}, 1
+
+local function open(n)
+	current = n
+	for i, b in ipairs(buttons) do
+		local on = i == n
+		b.btn.BackgroundColor3 = on and col.tabOn or col.tab
+		b.btn.TextColor3 = on and col.accent or col.dim
+		b.line.Color = on and col.tabLineOn or col.tabLine
+	end
+	content:ClearAllChildren()
+	for i, p in ipairs(tabs[n].panels) do
+		newPanel(content, p, (i - 1) % 2, (i - 1) // 2)
+	end
+end
+
+for i, t in ipairs(tabs) do
+	local b = make("TextButton", {
+		Position = UDim2.fromScale((i - 1) / #tabs, 0),
+		Size = UDim2.fromScale(1 / #tabs, 1),
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Text = t.name,
+		Font = font,
+		TextSize = fsize,
+	}, tabBar)
+	buttons[i] = { btn = b, line = outline(b, col.tabLine) }
+
+	b.MouseButton1Click:Connect(function() open(i) end)
+	b.MouseEnter:Connect(function()
+		if current ~= i then b.TextColor3 = col.text end
+	end)
+	b.MouseLeave:Connect(function()
+		if current ~= i then b.TextColor3 = col.dim end
+	end)
+end
+
+-- footer
+local foot = make("Frame", {
+	Position = UDim2.fromOffset(9, 552),
+	Size = UDim2.fromOffset(622, 26),
+	BackgroundColor3 = col.panel,
+	BorderSizePixel = 0,
+}, main)
+outline(foot, col.panelLine)
+label(foot, "welcome back, jew", UDim2.fromOffset(8, 0), UDim2.new(0.6, 0, 1, 0), col.off)
+label(foot, "[ pet template ]", UDim2.new(0.4, -8, 0, 0), UDim2.new(0.6, 0, 1, 0), col.off, Enum.TextXAlignment.Right)
+
+open(1)
